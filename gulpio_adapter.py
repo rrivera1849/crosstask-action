@@ -65,10 +65,12 @@ class CrossTaskGulpIO(AbstractDatasetAdapter):
 
             annotations = os.path.join(annotations_path, 
                                        "{}_{}.csv".format(task_id, youtube_id))
-            annotations = open(annotations, 'r').readlines()
+
+            if os.path.exists(annotations):
+                annotations = open(annotations, 'r').readlines()
+                metadata[youtube_id]['annotations'] = annotations
 
             metadata[youtube_id]['task_id'] = task_id
-            metadata[youtube_id]['annotations'] = annotations
 
             dataset[youtube_id].append(fname)
 
