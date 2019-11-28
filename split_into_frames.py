@@ -22,24 +22,13 @@ def split_into_frames(video_path, save_to):
     """Splits the given video into frames (1 FPS) and saves them to the path 
        specified.
     """
-    cap = cv2.VideoCapture(video_path)   
+    command = ["ffmpeg", "-i {}".format(video_path),
+                             "-f image2", "-vf fps=fps=1", 
+                             "{}".format(os.path.join(save_to, "frame_%04d.jpg")),
+                             "> /dev/null 2>&1"]
 
-    # 1 FPS
-    frame_rate = cap.get(5) 
+    os.system(" ".join(command))
 
-    count = 0
-    while (cap.isOpened()):
-        frame_id = cap.get(1)
-        ret, frame = cap.read()
-        if ret != True:
-            break
-
-        if frame_id % math.floor(frame_rate) == 0:
-            filename = "frame_{:05d}.jpg".format(count)
-            count += 1
-            cv2.imwrite(os.path.join(save_to, filename), frame)
-
-    cap.release()
 
 
 def do_work(video_path):
