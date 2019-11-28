@@ -18,7 +18,8 @@ from gulpio.transforms import Scale, ComposeVideo
 
 from dataset import VideoDataset
 
-
+# This dataset only contains one video. 
+# I've only pushed it as an example.
 dataset_path = "./data"
 
 repo = "epic-kitchens/action-models"
