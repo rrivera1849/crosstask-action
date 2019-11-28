@@ -17,7 +17,7 @@ parser.add_argument("dataset_path", type=str,
                     help="Path where the dataset is stored."
                          "Note: must already be stored as frames.")
 
-parser.add_argument("annotations_path", type=str,
+parser.add_argument("--annotations_path", type=str, default=None,
                     help="Path where annotations are stored."
                          "Used for storing the metadata.")
 
@@ -46,7 +46,7 @@ def find_files(path, extension=".mp4"):
 
 class CrossTaskGulpIO(AbstractDatasetAdapter, 
                       Custom20BNAdapterMixin):
-    def __init__(self, dataset_path, annotations_path):
+    def __init__(self, dataset_path, annotations_path=None):
         frame_fnames = find_files(dataset_path, extension=".jpg")
         self.dataset, self.metadata = \
             self._build_dataset_dict(frame_fnames, annotations_path)
@@ -55,7 +55,7 @@ class CrossTaskGulpIO(AbstractDatasetAdapter,
         # self.labels2idx = self.create_label2idx_dict("videos")
 
 
-    def _build_dataset_dict(self, frame_fnames, annotations_path):
+    def _build_dataset_dict(self, frame_fnames, annotations_path=None):
         dataset = defaultdict(list)
         metadata = defaultdict(dict)
         
@@ -65,13 +65,14 @@ class CrossTaskGulpIO(AbstractDatasetAdapter,
             youtube_id = os.path.basename(dirname)
             task_id = os.path.basename(os.path.dirname(dirname))
 
-            annotations = os.path.join(annotations_path, 
-                                       "{}_{}.csv".format(task_id, youtube_id))
+            if annotations_path is not None:
+                annotations = os.path.join(annotations_path, 
+                                        "{}_{}.csv".format(task_id, youtube_id))
 
-            # Not all videos have annotations available.
-            if os.path.exists(annotations):
-                annotations = open(annotations, 'r').readlines()
-                metadata[youtube_id]['annotations'] = annotations
+                # Not all videos have annotations available.
+                if os.path.exists(annotations):
+                    annotations = open(annotations, 'r').readlines()
+                    metadata[youtube_id]['annotations'] = annotations
 
             metadata[youtube_id]['task_id'] = task_id
             metadata[youtube_id]['youtube_id'] = youtube_id
