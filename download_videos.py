@@ -33,6 +33,9 @@ parser.add_argument("--resolution", default=None, type=str,
 parser.add_argument("--type", default="mp4", type=str,
                     help="Mime type to download, defaults to MP4.")
 
+parser.add_argument("--num_workers", type=int, default=40,
+                    help="Number of workers to use while downloading the videos.")
+
 args = parser.parse_args()
 
 
@@ -80,7 +83,7 @@ def download_video(csv_line):
 def main():
     csv_lines = read_csv(args.videos_csv)
 
-    pool = Pool(40)
+    pool = Pool(args.num_workers)
     pool.map(download_video, csv_lines)
     pool.close()
 

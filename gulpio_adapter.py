@@ -5,7 +5,7 @@ from collections import defaultdict
 from argparse import ArgumentParser
 
 import skimage.io as io
-from gulpio.adapters import AbstractDatasetAdapter
+from gulpio.adapters import AbstractDatasetAdapter, Custom20BNAdapterMixin
 from gulpio.fileio import GulpIngestor
 
 parser = ArgumentParser()
@@ -44,13 +44,15 @@ def find_files(path, extension=".mp4"):
     return sorted(all_files)
 
 
-class CrossTaskGulpIO(AbstractDatasetAdapter):
+class CrossTaskGulpIO(AbstractDatasetAdapter, 
+                      Custom20BNAdapterMixin):
     def __init__(self, dataset_path, annotations_path):
         frame_fnames = find_files(dataset_path, extension=".jpg")
         self.dataset, self.metadata = \
             self._build_dataset_dict(frame_fnames, annotations_path)
 
         self.dataset_keys = sorted(list(self.dataset.keys()))
+        # self.labels2idx = self.create_label2idx_dict("videos")
 
 
     def _build_dataset_dict(self, frame_fnames, annotations_path):
@@ -66,15 +68,18 @@ class CrossTaskGulpIO(AbstractDatasetAdapter):
             annotations = os.path.join(annotations_path, 
                                        "{}_{}.csv".format(task_id, youtube_id))
 
+            # Not all videos have annotations available.
             if os.path.exists(annotations):
                 annotations = open(annotations, 'r').readlines()
                 metadata[youtube_id]['annotations'] = annotations
 
             metadata[youtube_id]['task_id'] = task_id
+            metadata[youtube_id]['youtube_id'] = youtube_id
 
             dataset[youtube_id].append(fname)
 
         return dataset, metadata
+
 
     def _read_frames(self, frame_fnames):
         for i, fname in enumerate(frame_fnames):
@@ -92,6 +97,9 @@ class CrossTaskGulpIO(AbstractDatasetAdapter):
             yield {'id' : id_,
                    'meta' : metadata,
                    'frames' : frames}
+        # else:
+            # self.write_label2idx_dict()
+
 
     def __len__(self):
         return len(self.dataset_keys)

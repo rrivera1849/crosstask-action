@@ -15,6 +15,9 @@ parser.add_argument("dataset", type=str,
 parser.add_argument("save_to", type=str,
                     help="Path where processed videos (frames) should be saved.")
 
+parser.add_argument("--num_workers", type=int, default=40,
+                    help="Number of workers to use while splitting into frames.")
+
 args = parser.parse_args()
 
 
@@ -51,7 +54,7 @@ def main():
             if f.endswith(".mp4"):
                 mp4_files.append(os.path.join(root, f))
 
-    pool = Pool(40)
+    pool = Pool(args.num_workers)
     pool.map(do_work, mp4_files)
     pool.close()
 
