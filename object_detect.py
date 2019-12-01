@@ -13,7 +13,9 @@ else:
 import math
 import sys
 from argparse import ArgumentParser
+from collections import defaultdict
 
+import numpy as np
 import torch
 import torch.hub
 from gulpio.loader import DataLoader
@@ -58,7 +60,7 @@ def batch_it(loader):
     """
     num_segments = int(args.max_frames / (args.segment_count * args.snippet_length))
 
-    for data in loader:
+    for data, num_frames, indices in loader:
         # [num_videos, num_frames, C, H, W]
         data = data.transpose((0, 1, 4, 2, 3))
         data = torch.FloatTensor(data)
@@ -67,12 +69,24 @@ def batch_it(loader):
         data = data.reshape((args.video_batch_size, num_segments, -1, HEIGHT, WIDTH))
 
         with torch.no_grad():
+            num_frames_per_sample = args.segment_count * args.snippet_length
+
             for b in range(args.video_batch_size):
+                index = indices[b]
+                num_chunks_left = int(num_frames[b] / num_frames_per_sample)
+
+                youtube_id = loader.dataset.items[index][0]
+
                 for i in range(0, num_segments, args.batch_size):
                     # [B, D, H, W]
                     chunk = data[b, i:i+args.batch_size].squeeze(0).cuda()
 
-                    yield chunk
+                    if chunk.size(0) > num_chunks_left:
+                        yield chunk[:num_chunks_left], youtube_id
+                        break
+                    else:
+                        yield chunk, youtube_id
+                        num_chunks_left -= args.batch-size
 
 
 def main():
@@ -86,7 +100,11 @@ def main():
                                            transform=scale, 
                                            is_val=True)
 
-    loader = DataLoader(dataset, batch_size=args.video_batch_size, num_workers=0, shuffle=False)
+    loader = DataLoader(dataset, 
+                        batch_size=args.video_batch_size, 
+                        num_workers=0, 
+                        # collate_fn=video_collate,
+                        shuffle=False)
 
     class_counts = (125, 352)
     base_model = "resnet50"
@@ -98,17 +116,12 @@ def main():
 
 
     num_frames_per_sample = args.segment_count * args.snippet_length
-    total = 0
+    results = defaultdict(list)
 
-    for chunk in batch_it(loader):
-        total += num_frames_per_sample * chunk.size(0)
-
+    for chunk, youtube_id in batch_it(loader):
         features = mtrn.features(chunk)
         verb_logits, noun_logits = mtrn.logits(features)
-        print(chunk.size())
-        print(verb_logits.shape, noun_logits.shape)
-
-    # assert total == args.max_frames * len(dataset)
+        results[youtube_id].extend(noun_logits.argmax(dim=1).cpu().numpy().tolist())
 
     return 0
 
