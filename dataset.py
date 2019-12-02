@@ -84,7 +84,7 @@ class VideoDataset(object):
         if self.stack:
             frames = np.stack(frames)
 
-        return frames
+        return frames, num_frames, index
 
 
     def __len__(self):
@@ -92,3 +92,4 @@ class VideoDataset(object):
         This is called by PyTorch dataloader to decide the size of the dataset.
         """
         return len(self.items)
+

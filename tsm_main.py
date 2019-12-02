@@ -51,7 +51,7 @@ tsm = torch.hub.load(repo, "TSM", class_counts, segment_count, "RGB",
                      pretrained="epic-kitchens")
 
 
-for data in loader:
+for data, _, _ in loader:
     data = data.transpose((0, 1, 4, 2, 3))
     data = torch.FloatTensor(data)
     data = data.reshape((batch_size, -1, height, width))
