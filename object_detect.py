@@ -21,9 +21,10 @@ import torch
 import torch.hub
 from gulpio.loader import DataLoader
 from gulpio.transforms import ComposeVideo, Scale
+from torch.utils.data import DataLoader as DataLoaderPytorch
 from tqdm import tqdm
 
-from dataset import VideoDataset
+from dataset import VideoDataset, OpticalFlowDataset
 
 parser = ArgumentParser()
 
@@ -55,10 +56,14 @@ parser.add_argument("--segment_count", type=int, default=8,
 parser.add_argument("--snippet_length", type=int, default=1,
                     help="Number of frames per segment.")
 
+parser.add_argument("--optical_flow", default=False, action="store_true",
+                    help="If True, will use TSM on Optical Flow data.")
+
 args = parser.parse_args()
 
 # Default height and width for Epic Kitchen models.
 HEIGHT, WIDTH = 224, 224
+flow_checkpoint_path = "./checkpoints/TSM_arch=resnet50_modality=Flow_segments=8-e09c2d3a.pth.tar"
 
 
 def batch_it(loader):
@@ -73,9 +78,12 @@ def batch_it(loader):
     
     pbar = tqdm(total=len(loader))
     for data, num_frames, indices in loader:
-        # [num_videos, num_frames, C, H, W]
-        data = data.transpose((0, 1, 4, 2, 3))
-        data = torch.FloatTensor(data)
+        if not args.optical_flow:
+            # [num_videos, num_frames, C, H, W]
+            data = data.transpose((0, 1, 4, 2, 3))
+            data = torch.FloatTensor(data)
+        else:
+            data = data.float()
 
         # [num_videos, num_segments, D, H, W]
         data = data.reshape((args.video_batch_size, num_segments, -1, HEIGHT, WIDTH))
@@ -85,7 +93,12 @@ def batch_it(loader):
 
             for b in range(args.video_batch_size):
                 index = indices[b]
-                youtube_id = loader.dataset.items[index][0]
+
+                if args.optical_flow:
+                    youtube_id = os.path.basename(
+                                    os.path.dirname(loader.dataset.dataset[index]))
+                else:
+                    youtube_id = loader.dataset.items[index][0]
 
                 num_chunks_left = int(num_frames[b] / num_frames_per_sample)
 
@@ -96,7 +109,7 @@ def batch_it(loader):
                     # fluctuate as we go from small videos to large ones.
                     chunk = data[b, i:i+args.batch_size].squeeze(0).cuda()
 
-                    if chunk.size(0) > num_chunks_left:
+                    if chunk.size(0) >= num_chunks_left:
                         yield chunk[:num_chunks_left], youtube_id
                         break
                     else:
@@ -107,30 +120,52 @@ def batch_it(loader):
 
 
 def main():
-    scale = ComposeVideo([Scale((HEIGHT, WIDTH))])
 
-    dataset = video_dataset = VideoDataset(args.dataset_path, 
-                                           num_frames=args.max_frames,
-                                           step_size=1, 
-                                           is_val=True,
-                                           transform=scale, 
-                                           stack=True,
-                                           random_offset=False)
+    if args.optical_flow:
+        dataset = OpticalFlowDataset(args.dataset_path,
+                                     num_frames=args.max_frames,
+                                     step_size=1)
 
-    loader = DataLoader(dataset, 
-                        batch_size=args.video_batch_size, 
-                        num_workers=0, 
-                        shuffle=False)
+        loader = DataLoaderPytorch(dataset,
+                                   batch_size=args.video_batch_size,
+                                   num_workers=0,
+                                   shuffle=False)
+    else:
+        scale = ComposeVideo([Scale((HEIGHT, WIDTH))])
+
+        dataset = VideoDataset(args.dataset_path, 
+                            num_frames=args.max_frames,
+                            step_size=1, 
+                            is_val=True,
+                            transform=scale, 
+                            stack=True,
+                            random_offset=False)
+
+        loader = DataLoader(dataset, 
+                            batch_size=args.video_batch_size, 
+                            num_workers=0, 
+                            shuffle=False)
 
 
     repo = "epic-kitchens/action-models"
     class_counts = (125, 352)
     base_model = "resnet50"
 
+    t = "RGB" if not args.optical_flow else "Flow"
     model = torch.hub.load(repo, "TSM", 
-                          class_counts, args.segment_count, "RGB",
+                          class_counts, args.segment_count, t,
                           base_model=base_model, 
                           pretrained="epic-kitchens").cuda()
+
+
+    try:
+        if args.optical_flow:
+            checkpoint = torch.load(flow_checkpoint_path)
+            model.load_state_dict(checkpoint['state_dict'])
+    except:
+        print("Unable to load TSM Optical Flow checkpoint.")
+        print("Please download it from: https://data.bris.ac.uk/data/dataset/2tw6gdvmfj3f12papdy24flvmo")
+        return 1
 
 
     logits_dir = os.path.join("./output/", 
@@ -143,6 +178,7 @@ def main():
     results = defaultdict(list)
 
     for chunk, youtube_id in batch_it(loader):
+
         features = model.features(chunk)
         verb_logits, noun_logits = model.logits(features)
 

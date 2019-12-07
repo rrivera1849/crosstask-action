@@ -4,6 +4,7 @@ import sys
 from collections import defaultdict
 from argparse import ArgumentParser
 
+import numpy as np
 import skimage.io as io
 from gulpio.adapters import AbstractDatasetAdapter, Custom20BNAdapterMixin
 from gulpio.fileio import GulpIngestor
@@ -27,6 +28,9 @@ parser.add_argument("--videos_per_gulp", type=int, default=100,
 parser.add_argument("--num_workers", type=int, default=40,
                     help="Number of workers to use while Gulping dataset.")
 
+parser.add_argument("--extension", type=str, default=".jpg",
+                    help="Extension to look for when creating Gulp.")
+
 args = parser.parse_args()
 
 
@@ -47,12 +51,11 @@ def find_files(path, extension=".mp4"):
 class CrossTaskGulpIO(AbstractDatasetAdapter, 
                       Custom20BNAdapterMixin):
     def __init__(self, dataset_path, annotations_path=None):
-        frame_fnames = find_files(dataset_path, extension=".jpg")
+        frame_fnames = find_files(dataset_path, extension=args.extension)
         self.dataset, self.metadata = \
             self._build_dataset_dict(frame_fnames, annotations_path)
 
         self.dataset_keys = sorted(list(self.dataset.keys()))
-        # self.labels2idx = self.create_label2idx_dict("videos")
 
 
     def _build_dataset_dict(self, frame_fnames, annotations_path=None):
@@ -98,8 +101,6 @@ class CrossTaskGulpIO(AbstractDatasetAdapter,
             yield {'id' : id_,
                    'meta' : metadata,
                    'frames' : frames}
-        # else:
-            # self.write_label2idx_dict()
 
 
     def __len__(self):

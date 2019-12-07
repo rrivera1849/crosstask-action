@@ -2,8 +2,12 @@
         https://github.com/TwentyBN/GulpIO/blob/master/src/main/python/gulpio/transforms.py
 """
 
+import os
+
 import numpy as np
 from gulpio import GulpDirectory
+
+from torch.utils.data import Dataset
 
 
 class VideoDataset(object):
@@ -93,3 +97,53 @@ class VideoDataset(object):
         """
         return len(self.items)
 
+
+
+class OpticalFlowDataset(Dataset):
+
+    def __init__(self, data_path, num_frames, step_size,
+                 transform=None):
+        """Data Loader for the Optical Flow dataset.
+            data_path (str): path to GulpIO dataset folder
+            num_frames (int): number of frames to be fetched.
+            step_size (int): number of frames skippid while picking
+            transform (object): set of augmentation steps defined by
+        """
+        self.data_path = data_path
+        self.num_frames = num_frames
+        self.step_size = step_size
+        self.transform = transform
+
+        flow_files = [] 
+        for root, subdirs, files in os.walk(self.data_path):
+            for f in files:
+                if f.endswith('.npy'):
+                    flow_files.append(os.path.join(root, f))
+
+        self.dataset = flow_files
+
+
+    def __getitem__(self, index):
+        # F x 2 x H x W
+        data = np.load(self.dataset[index])
+
+        num_frames, _, H, W = data.shape
+        num_frames_necessary = self.num_frames * self.step_size
+
+        if num_frames_necessary > num_frames:
+            frames_needed = int((num_frames_necessary - num_frames) / self.step_size)
+
+            new_data = np.zeros((num_frames + frames_needed, 2, H, W))
+            new_data[:num_frames] = data
+            new_data[num_frames:] = data[-1]
+
+            data = new_data
+
+        if self.transform:
+            for frame in range(num_frames):
+                data[frame] = self.transform(data[frame])
+
+        return data, num_frames, index
+
+    def __len__(self):
+        return len(self.dataset)

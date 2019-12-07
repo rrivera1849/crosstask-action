@@ -18,15 +18,18 @@ parser.add_argument("save_to", type=str,
 parser.add_argument("--num_workers", type=int, default=40,
                     help="Number of workers to use while splitting into frames.")
 
+parser.add_argument("--fps", type=int, default=1,
+                    help="Frames per second to extract from video.")
+
 args = parser.parse_args()
 
 
 def split_into_frames(video_path, save_to):
-    """Splits the given video into frames (1 FPS) and saves them to the path 
+    """Splits the given video into frames (args.fps FPS) and saves them to the path 
        specified.
     """
     command = ["ffmpeg", "-i {}".format(video_path),
-                             "-f image2", "-vf fps=fps=1", 
+                             "-f image2", "-vf fps=fps={}".args.fps, 
                              "{}".format(os.path.join(save_to, "frame_%04d.jpg")),
                              "> /dev/null 2>&1"]
 
