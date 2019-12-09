@@ -29,7 +29,7 @@ def split_into_frames(video_path, save_to):
        specified.
     """
     command = ["ffmpeg", "-i {}".format(video_path),
-                             "-f image2", "-vf fps=fps={}".args.fps, 
+                             "-f image2", "-vf fps=fps={}".format(args.fps), 
                              "{}".format(os.path.join(save_to, "frame_%04d.jpg")),
                              "> /dev/null 2>&1"]
 
@@ -63,6 +63,7 @@ def main():
 
     return 0
 
+    sys.exit(main())
 
 if __name__ == "__main__":
     sys.exit(main())
